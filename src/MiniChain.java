@@ -1,6 +1,8 @@
 import java.util.ArrayList;
+
 public class MiniChain {
 	private ArrayList<Block> chain;
+	private int difficulty = 8; 	// Mining difficulty - The number of preceding 0 of the hash.
 	
 	
 	public MiniChain() {
@@ -14,6 +16,26 @@ public class MiniChain {
 		chain.add(new Block(data, previousHash));
 	}
 	
+	public Block getHighestBlock() {
+		return chain.get(chain.size() - 1);
+	}
+	
+	public int getDifficulty() {
+		return difficulty;
+	}
+	
+	
+	/* Miners use this method to submit the block they mined. */
+	public void submit(Block block) {
+		// Check the validity of the block before adding to the chain
+		String previousHash = getHighestBlock().getHash();
+		if (block.getPreviousBlockHash().equals(previousHash) && 
+				PoW.verifyBlock(block, difficulty))
+			chain.add(block);
+		else
+			System.out.println("Illegal block rejected.");
+	}
+	
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
 		for (Block block : chain)
@@ -21,10 +43,18 @@ public class MiniChain {
 		return sb.toString();
 	}
 	
+	/* Test */
 	public static void main(String[] args) {
 		MiniChain chain = new MiniChain();
-		for (int i = 0; i < 10; i++)
-			chain.addBlock("block " + i);
-		System.out.println(chain);
+		//for (int i = 0; i < 4; i++)
+		Thread t = new Miner(chain);
+		t.start();
+		try {
+			t.join();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 }
