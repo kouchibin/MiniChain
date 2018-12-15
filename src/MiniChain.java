@@ -1,23 +1,41 @@
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import org.iq80.leveldb.DB;
+import static org.iq80.leveldb.impl.Iq80DBFactory.*;
+import org.iq80.leveldb.Options;
 
 public class MiniChain {
-	private ArrayList<Block> chain;
-	private int difficulty = 8; 	// Mining difficulty - The number of preceding 0 of the hash.
+	private int difficulty = 4; 	// Mining difficulty - The number of preceding 0 of the hash.
+	private DB database;
+	private Options options;
+	private byte[] latestBlock;		// Key of the latest block in database
 	
-	
-	public MiniChain() {
-		// Create genesis block
-		chain = new ArrayList<>();
-		chain.add(new Block("Genesis Block. Created by Kou Chibin.", ""));
+	public MiniChain() throws IOException {
+		options = new Options();
+		options.createIfMissing(true);
+		database = factory.open(new File("chain-data"), options);
+		
+		// Check if this is a new chain by checking if the last block exist
+		latestBlock = database.get(bytes("l"));
+		if (latestBlock == null) {
+			// This is a new chain.
+			// Add genesis block
+			Block genesis = new Block("Genesis Block. Created by Kou Chibin.", "");
+			latestBlock = bytes(genesis.getHash());
+			database.put(latestBlock, genesis.serialize());
+			database.put(bytes("l"), latestBlock);
+		} 
 	}
 	
-	public void addBlock(String data) {
-		String previousHash = chain.get(chain.size() - 1).getHash();
-		chain.add(new Block(data, previousHash));
+	private void addBlock(Block block) {
+		latestBlock = bytes(block.getHash());
+		database.put(latestBlock, block.serialize());
+		database.put(bytes("l"), latestBlock);
 	}
 	
-	public Block getHighestBlock() {
-		return chain.get(chain.size() - 1);
+	public String getLatesBlockHash() {
+		return asString(latestBlock);
 	}
 	
 	public int getDifficulty() {
@@ -28,33 +46,24 @@ public class MiniChain {
 	/* Miners use this method to submit the block they mined. */
 	public void submit(Block block) {
 		// Check the validity of the block before adding to the chain
-		String previousHash = getHighestBlock().getHash();
+		String previousHash = getLatesBlockHash();
 		if (block.getPreviousBlockHash().equals(previousHash) && 
 				PoW.verifyBlock(block, difficulty))
-			chain.add(block);
+			addBlock(block);
 		else
 			System.out.println("Illegal block rejected.");
 	}
 	
 	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		for (Block block : chain)
-			sb.append(block.toString() + "\n");
-		return sb.toString();
+		return null;
 	}
 	
 	/* Test */
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException, InterruptedException {
 		MiniChain chain = new MiniChain();
 		//for (int i = 0; i < 4; i++)
 		Thread t = new Miner(chain);
 		t.start();
-		try {
-			t.join();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
+		t.join();
 	}
 }

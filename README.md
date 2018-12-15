@@ -1,8 +1,9 @@
 # MiniChain
 Blockchain implemented in Java.
 
-## Libraries
+## Dependencies
 - [Gson 2.8.5](https://github.com/google/gson)
+- [dain/leveldb](https://github.com/dain/leveldb)
 
 ## Usage
 1. Build the project

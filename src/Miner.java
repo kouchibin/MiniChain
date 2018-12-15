@@ -14,7 +14,7 @@ public class Miner extends Thread{
 	public void run() {
 		while (true) {
 			String transaction = getTransactions();
-			String previousHash = chain.getHighestBlock().getHash();
+			String previousHash = chain.getLatesBlockHash();
 			Block block = new Block(transaction, previousHash);
 			Block minedBlock = PoW.mineBlock(block, chain.getDifficulty()); 
 			System.out.println("Mined a new block:");

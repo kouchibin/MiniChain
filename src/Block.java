@@ -1,7 +1,11 @@
+import java.io.Serializable;
 import java.util.Date;
+
+import org.apache.commons.lang3.SerializationUtils;
+
 import com.google.gson.GsonBuilder;
 
-public class Block {
+public class Block implements Serializable {
 	private long timeStamp;				// When this block is mined
 	private String data;				// Actual data in this block
 	private String previousBlockHash;	// Hash value of previous block
@@ -13,8 +17,8 @@ public class Block {
 		this.previousBlockHash = previousBlockHash;
 		this.timeStamp = new Date().getTime();
 		this.hash = StringUtil.getHash(previousBlockHash +
-									Long.toString(timeStamp) + 
-									data);
+						Long.toString(timeStamp) + 
+						data);
 	}
 	
 	public String calculateHash() {
@@ -66,6 +70,14 @@ public class Block {
 	
 	public String toString() {
 		return new GsonBuilder().setPrettyPrinting().create().toJson(this);
+	}
+	
+	public byte[] serialize() {
+		return SerializationUtils.serialize(this);
+	}
+	
+	public static Block deserialize(byte[] source) {
+		return (Block) SerializationUtils.deserialize(source);
 	}
 	
 }
