@@ -61,26 +61,13 @@ public class MiniChain implements Iterable<Block> {
 	}
 	
 	public String toString() {
-		return null;
+		StringBuilder sb = new StringBuilder();
+		for (Block block : this) {
+			sb.append(block);
+		}
+		return sb.toString();
 	}
 	
-	/* Test */
-	public static void main(String[] args) throws IOException, InterruptedException {
-		MiniChain chain = null;
-		try {
-			chain = new MiniChain();
-			//for (int i = 0; i < 4; i++)
-			//Thread t = new Miner(chain);
-			//t.start();
-			//t.join();
-			for (Block block : chain) {
-				System.out.println(block);
-			}
-		} finally {
-			chain.close();
-		}
-		
-	}
 
 	@Override
 	public Iterator<Block> iterator() {
@@ -111,6 +98,24 @@ public class MiniChain implements Iterable<Block> {
 			else 
 				currentBlock = Block.deserialize(nextBlockBytes);
 			return temp;
+		}
+		
+	}
+	
+	/* Test */
+	public static void main(String[] args) throws IOException, InterruptedException {
+		MiniChain chain = null;
+		try {
+			chain = new MiniChain();
+			//for (int i = 0; i < 4; i++)
+			//Thread t = new Miner(chain);
+			//t.start();
+			//t.join();
+		
+			System.out.println(chain);
+			
+		} finally {
+			chain.close();
 		}
 		
 	}
