@@ -1,11 +1,12 @@
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Iterator;
+
 import org.iq80.leveldb.DB;
 import static org.iq80.leveldb.impl.Iq80DBFactory.*;
 import org.iq80.leveldb.Options;
 
-public class MiniChain {
+public class MiniChain implements Iterable<Block> {
 	private int difficulty = 4; 	// Mining difficulty - The number of preceding 0 of the hash.
 	private DB database;
 	private Options options;
@@ -21,6 +22,7 @@ public class MiniChain {
 		if (latestBlock == null) {
 			// This is a new chain.
 			// Add genesis block
+			System.out.println("New blockchain.");
 			Block genesis = new Block("Genesis Block. Created by Kou Chibin.", "");
 			latestBlock = bytes(genesis.getHash());
 			database.put(latestBlock, genesis.serialize());
@@ -54,16 +56,62 @@ public class MiniChain {
 			System.out.println("Illegal block rejected.");
 	}
 	
+	public void close() throws IOException {
+		database.close();
+	}
+	
 	public String toString() {
 		return null;
 	}
 	
 	/* Test */
 	public static void main(String[] args) throws IOException, InterruptedException {
-		MiniChain chain = new MiniChain();
-		//for (int i = 0; i < 4; i++)
-		Thread t = new Miner(chain);
-		t.start();
-		t.join();
+		MiniChain chain = null;
+		try {
+			chain = new MiniChain();
+			//for (int i = 0; i < 4; i++)
+			//Thread t = new Miner(chain);
+			//t.start();
+			//t.join();
+			for (Block block : chain) {
+				System.out.println(block);
+			}
+		} finally {
+			chain.close();
+		}
+		
+	}
+
+	@Override
+	public Iterator<Block> iterator() {
+		return new BlockchainIterator();
+	}
+	
+	public class BlockchainIterator implements Iterator<Block> {
+
+		private Block currentBlock;
+		
+		public BlockchainIterator() {
+			currentBlock = Block.deserialize(database.get(latestBlock));
+		}
+		
+		@Override
+		public boolean hasNext() {
+			if (currentBlock == null)
+				return false;
+			return true;
+		}
+
+		@Override
+		public Block next() {
+			Block temp = currentBlock;
+			byte[] nextBlockBytes = database.get(bytes(temp.getPreviousBlockHash()));
+			if (nextBlockBytes == null)
+				currentBlock = null;
+			else 
+				currentBlock = Block.deserialize(nextBlockBytes);
+			return temp;
+		}
+		
 	}
 }

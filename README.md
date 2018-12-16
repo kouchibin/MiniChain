@@ -4,6 +4,7 @@ Blockchain implemented in Java.
 ## Dependencies
 - [Gson 2.8.5](https://github.com/google/gson)
 - [dain/leveldb](https://github.com/dain/leveldb)
+- [Apache Commons Lang](https://commons.apache.org/proper/commons-lang/)
 
 ## Usage
 1. Build the project
