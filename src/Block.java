@@ -12,6 +12,8 @@ public class Block implements Serializable {
 	private String hash;				// Hash value of this block
 	private long nonce; 				// For PoW
 	
+	private static final long serialVersionUID = -4259345706878498801L;
+	
 	public Block(String data, String previousBlockHash) {
 		this.data = data;
 		this.previousBlockHash = previousBlockHash;
@@ -19,15 +21,6 @@ public class Block implements Serializable {
 		this.hash = StringUtil.getHash(previousBlockHash +
 						Long.toString(timeStamp) + 
 						data);
-	}
-	
-	public String calculateHash() {
-		String hash = StringUtil.getHash(
-				previousBlockHash +
-				Long.toString(timeStamp) + 
-				data
-				);
-		return hash;
 	}
 	
 	public String getData() {

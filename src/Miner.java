@@ -8,12 +8,16 @@ public class Miner extends Thread{
 	}
 	
 	private String getTransactions() {
-		return "Send 1 million to KouChibin";
+		return chain.getNextTransaction();
 	}
 	
 	public void run() {
 		while (true) {
 			String transaction = getTransactions();
+			if (transaction == null) {
+				// Nothing to do. Can be changed to block state in the future.
+				continue;
+			}
 			String previousHash = chain.getLatesBlockHash();
 			Block block = new Block(transaction, previousHash);
 			Block minedBlock = PoW.mineBlock(block, chain.getDifficulty()); 
