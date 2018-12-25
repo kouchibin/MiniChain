@@ -27,6 +27,26 @@ public class CLI extends Thread{
 	    System.out.println("createblockchain -addr \"address\".");
 	}
 	
+	public void send(String[] parameters) {
+	    String from = "";
+	    String to = "";
+	    int amount = 0;
+	    if (parameters.length != 7) {
+	        printHelp();
+	        return;
+	    }
+	        
+	    for (int i = 1; i < parameters.length; i++) {
+	        if (parameters[i].equals("-from"))
+	            from = parameters[i+1];
+	        else if (parameters[i].equals("-to"))
+	            to = parameters[i+1];
+	        else if (parameters[i].equals("-amount"))
+                amount = Integer.parseInt(parameters[i+1]);
+	    }
+	    chain.sendTransaction(from, to, amount);
+	}
+	
 	private void executeCmd(String[] parameters) {
 		if (parameters == null) {
 			System.out.println("Parsed command is empty.");
@@ -61,6 +81,16 @@ public class CLI extends Thread{
 			msg = msg.substring(1, msg.length() - 2);
 			chain.newTransaction(Transaction.newCoinbaseTX("kouchibin", "abc"));
 			break;
+		case "getbalance":
+		    if (parameters.length != 3 || !parameters[1].equals("-addr")) {
+                printHelp();
+                break;
+            }
+		    System.out.println("Balance:" + chain.getBalance(parameters[2]));
+		    break;
+		case "send":
+		    send(parameters);
+		    break;
 		default:
 			printHelp();
 			break;
