@@ -1,5 +1,6 @@
 import java.io.File;
 import java.io.IOException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import org.bitcoinj.core.Base58;
 import org.iq80.leveldb.DB;
 import static org.iq80.leveldb.impl.Iq80DBFactory.*;
 import org.iq80.leveldb.Options;
@@ -40,8 +42,18 @@ public class MiniChain implements Iterable<Block> {
         Transaction coinbase = Transaction.newCoinbaseTX(creator, "");
         Block genesis = new Block(new Transaction[] {coinbase}, "");
         latestBlock = bytes(genesis.getHash());
+        initializeDatabase();
         database.put(latestBlock, genesis.serialize());
         database.put(bytes("l"), latestBlock);
+    }
+    
+    public void initializeDatabase() {
+        ArrayList<byte[]> keys = new ArrayList<>(); 
+        for (Map.Entry<byte[], byte[]> entry : database) {
+            keys.add(entry.getKey());
+        }
+        for (byte[] key : keys)
+            database.delete(key);
     }
     
     /**
@@ -57,10 +69,11 @@ public class MiniChain implements Iterable<Block> {
      * Add a sending coins transaction to the blockchain.
      * @param from The source account. 
      * @param to The destination account.
+     * @param publicKey The public key of the initiator of this transaction.
      * @param amount The amount will be sent in the transaction.
      */
-    public void sendTransaction(String from, String to, int amount) {
-        Transaction transaction = newUTXOTransaction(from, to, amount);
+    public void sendTransaction(String from, String to, int amount, Wallet wallet) {
+        Transaction transaction = newUTXOTransaction(from, to, amount, wallet);
         if (transaction == null) {
             System.out.println("Not enough funds.");
             return;
@@ -76,10 +89,11 @@ public class MiniChain implements Iterable<Block> {
      * @param from The source account. 
      * @param to The destination account.
      * @param amount The amount will be sent in the transaction.
+     * @param publicKey The public key of the initiator of this transaction.
      * @return The constructed transaction. 
      *         Or null if source account doesn't have enough coins.
      */
-    public Transaction newUTXOTransaction(String from, String to, int amount) {
+    public Transaction newUTXOTransaction(String from, String to, int amount, Wallet wallet) {
         ArrayList<TXInput> inputs = new ArrayList<>();
         ArrayList<TXOutput> outputs = new ArrayList<>();
         int sum = 0;
@@ -89,7 +103,10 @@ public class MiniChain implements Iterable<Block> {
             if (sum >= amount)
                 break;
             sum += out.output.value;
-            TXInput in = new TXInput(out.transaction.getID(), out.vOut, from);
+            TXInput in = new TXInput(out.transaction.getID(), 
+                                     out.vOut, 
+                                     from, 
+                                     wallet.keyPair.getPublic().getEncoded());
             inputs.add(in);
         }
         
@@ -110,6 +127,8 @@ public class MiniChain implements Iterable<Block> {
     }
     
     public List<AvailableOutput> findAvailableOutputs(String address) {
+        byte[] decoded = Base58.decode(address);
+        byte[] pubKeyHash = Arrays.copyOfRange(decoded, 1, decoded.length - 4);
         ArrayList<AvailableOutput> availableOutputs = new ArrayList<>();
         Map<String, Set<Integer>> spentTXOs = new HashMap<>();
         for (Block block : this) {
@@ -125,7 +144,7 @@ public class MiniChain implements Iterable<Block> {
                     if (spentIdx != null && spentIdx.contains(i)) 
                         continue;
 
-                    if (output.canBeUnlockedWith(address)) {
+                    if (output.isLockedWithKey(pubKeyHash)) {
                         availableOutputs.add(new AvailableOutput(output, tx, i));
                     }
                 }
@@ -250,8 +269,11 @@ public class MiniChain implements Iterable<Block> {
     }
 
     /* Test */
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) throws Exception {
         MiniChain chain = null;
+        //Wallet wallet = new Wallet();
+        //System.out.println("addr: " + wallet.address);
+      
         try {
             chain = new MiniChain();
             // for (int i = 0; i < 4; i++)
@@ -261,6 +283,7 @@ public class MiniChain implements Iterable<Block> {
             cli.start();
             //Transaction tx = Transaction.newCoinbaseTX("second test", "something");
             //chain.newTransaction(tx);
+            
             t.join();
             cli.join();
             

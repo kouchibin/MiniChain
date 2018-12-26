@@ -1,5 +1,10 @@
 import java.io.Serializable;
+import java.security.PublicKey;
+import java.util.Arrays;
+
 import org.apache.commons.lang3.SerializationUtils;
+import org.bitcoinj.core.Base58;
+import org.bitcoinj.core.Utils;
 
 public class Transaction implements Serializable {
     
@@ -40,7 +45,7 @@ public class Transaction implements Serializable {
     public static Transaction newCoinbaseTX(String to, String data) {
         if (data == null || data.equals(""))
             data = "Reward to " + to;
-        TXInput txin = new TXInput(null, -1, data);
+        TXInput txin = new TXInput(null, -1, data, null);
         TXOutput txout = new TXOutput(SUBSIDY, to);
         Transaction tx = new Transaction(new TXInput[] {txin}, new TXOutput[] {txout});
         return tx;
@@ -83,22 +88,25 @@ class TXInput implements Serializable {
 
     private static final long serialVersionUID = 1L;
     
-    public final String txId;        // The ID of the referenced transaction
-    public final int vOut;           // The index of the referenced out put in the above transaction
-    public final String scriptSig;   // The proof of the right to spend that referenced output
+    public final String txId;           // The ID of the referenced transaction
+    public final int vOut;              // The index of the referenced out put in the above transaction
+    public final String signature;      // The proof of the right to spend that referenced output
+    public final byte[] publicKey;      // Raw public key. 
 	
-	public TXInput(String txId, int vOut, String scriptSig) {
+	public TXInput(String txId, int vOut, String signature, byte[] publicKey) {
 	    this.txId = txId;
 	    this.vOut = vOut;
-	    this.scriptSig = scriptSig;
+	    this.signature = signature;
+	    this.publicKey = publicKey;
 	}
 	
-	public boolean canUnlockOutputWith(String unlockingData) {
-	    return scriptSig == unlockingData;
+	public boolean usesKey(byte[] pubKeyHash) {
+	    byte[] lockingHash = Utils.sha256hash160(publicKey);
+	    return Arrays.equals(pubKeyHash, lockingHash);
 	}
 	
 	public String toString() {
-	    return txId.toString() + " : " + vOut + " : " + scriptSig;
+	    return txId.toString() + " : " + vOut + " : " + signature;
 	}
 }
 
@@ -106,18 +114,24 @@ class TXOutput implements Serializable {
 
     private static final long serialVersionUID = 1L;
     public final int value;
-    public final String scriptPubKey;
+    public final byte[] pubKeyHash;
     
-    public TXOutput(int value, String scriptPubKey) {
+    public TXOutput(int value, String address) {
         this.value = value;
-        this.scriptPubKey = scriptPubKey;
+        pubKeyHash = lock(address);
     }
     
-    public boolean canBeUnlockedWith(String unlockingData) {
-        return scriptPubKey.equals(unlockingData);
+    public byte[] lock(String address) {
+        byte[] pubKeyHash = Base58.decode(address);
+        // Remove version and checksum.
+        return Arrays.copyOfRange(pubKeyHash, 1, pubKeyHash.length - 4); 
+    }
+    
+    public boolean isLockedWithKey(byte[] pubKeyHash) {
+        return Arrays.equals(this.pubKeyHash, pubKeyHash);
     }
     
     public String toString() {
-        return "" + value + " : " + scriptPubKey;
+        return "" + value + " : " + pubKeyHash;
     }
 }

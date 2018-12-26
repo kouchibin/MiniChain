@@ -5,9 +5,12 @@ public class CLI extends Thread{
 	private MiniChain chain;
 	private Scanner scanner;
 	
+	private Wallets wallets;
+	
 	public CLI(MiniChain chain) {
 	    this.chain = chain;
 		scanner = new Scanner(System.in);
+		wallets = new Wallets();
 	}
 	
 	public void setChain(MiniChain chain) {
@@ -44,20 +47,22 @@ public class CLI extends Thread{
 	        else if (parameters[i].equals("-amount"))
                 amount = Integer.parseInt(parameters[i+1]);
 	    }
-	    chain.sendTransaction(from, to, amount);
+	    
+	    Wallet wallet = wallets.get(from);
+	    chain.sendTransaction(from, to, amount, wallet);
 	}
 	
-	private void executeCmd(String[] parameters) {
+	private void executeCmd(String[] parameters) throws Exception {
 		if (parameters == null) {
 			System.out.println("Parsed command is empty.");
 			return;
 		}
 		
-		if (chain.emptyChain() && !parameters[0].equals("createblockchain")) {
-		    System.out.println("Currently there is no blockchain.\n"
-                    + "Use <createblockchain -addr \"address\"> to create a new blockchain.");
-		    return;
-		}
+//		if (chain.emptyChain() && !parameters[0].equals("createblockchain")) {
+//		    System.out.println("Currently there is no blockchain.\n"
+//                    + "Use <createblockchain -addr \"address\"> to create a new blockchain.");
+//		    return;
+//		}
 		    
 		
 		switch (parameters[0]) {
@@ -82,11 +87,10 @@ public class CLI extends Thread{
 			chain.newTransaction(Transaction.newCoinbaseTX("kouchibin", "abc"));
 			break;
 		case "getbalance":
-		    if (parameters.length != 3 || !parameters[1].equals("-addr")) {
-                printHelp();
-                break;
-            }
-		    System.out.println("Balance:" + chain.getBalance(parameters[2]));
+		    getBalance(parameters);
+		    break;
+		case "createwallet":
+		    createWallet(parameters);
 		    break;
 		case "send":
 		    send(parameters);
@@ -96,13 +100,32 @@ public class CLI extends Thread{
 			break;
 		}
 	}
-	
-	@Override
+	private void getBalance(String[] parameters) {
+	    if (parameters.length != 3 || !parameters[1].equals("-addr")) {
+            printHelp();
+            return;
+        }
+        System.out.println("Balance:" + chain.getBalance(parameters[2]));
+	}
+	private void createWallet(String[] parameters) throws Exception {
+	    if (parameters.length != 1) {
+	        printHelp();
+	        return;
+	    }
+        Wallet w = wallets.newWallet();
+        System.out.println("Your new address:" + w.address);
+    }
+
+    @Override
 	public void run() {
 		while (true) {
 			System.out.print("> ");
 			String[] parameters = getCmd();
-			executeCmd(parameters);
+			try {
+                executeCmd(parameters);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 		}
 	}
 	
