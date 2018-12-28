@@ -4,13 +4,19 @@ import java.util.Date;
 import org.apache.commons.lang3.SerializationUtils;
 
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.Expose;
 
 public class Block implements Serializable {
+    @Expose
     private long timeStamp;                 // When this block is mined
-    private Transaction[] transactions;     // Transactions stored in this block
+    @Expose
     private String previousBlockHash;       // Hash value of previous block
+    @Expose
     private String hash;                    // Hash value of this block
+    @Expose
     private long nonce;                     // For PoW
+    
+    private Transaction[] transactions;     // Transactions stored in this block
 
     private static final long serialVersionUID = -4259345706878498801L;
 
@@ -62,7 +68,7 @@ public class Block implements Serializable {
     }
 
     public String toString() {
-        return new GsonBuilder().setPrettyPrinting().create().toJson(this);
+        return new GsonBuilder().excludeFieldsWithoutExposeAnnotation().setPrettyPrinting().create().toJson(this);
     }
 
     public byte[] serialize() {

@@ -1,6 +1,7 @@
 import java.io.File;
 import java.io.IOException;
-import java.security.PublicKey;
+import java.security.*;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,8 +72,9 @@ public class MiniChain implements Iterable<Block> {
      * @param to The destination account.
      * @param publicKey The public key of the initiator of this transaction.
      * @param amount The amount will be sent in the transaction.
+     * @throws Exception 
      */
-    public void sendTransaction(String from, String to, int amount, Wallet wallet) {
+    public void sendTransaction(String from, String to, int amount, Wallet wallet) throws Exception {
         Transaction transaction = newUTXOTransaction(from, to, amount, wallet);
         if (transaction == null) {
             System.out.println("Not enough funds.");
@@ -92,8 +94,9 @@ public class MiniChain implements Iterable<Block> {
      * @param publicKey The public key of the initiator of this transaction.
      * @return The constructed transaction. 
      *         Or null if source account doesn't have enough coins.
+     * @throws Exception 
      */
-    public Transaction newUTXOTransaction(String from, String to, int amount, Wallet wallet) {
+    public Transaction newUTXOTransaction(String from, String to, int amount, Wallet wallet) throws Exception {
         ArrayList<TXInput> inputs = new ArrayList<>();
         ArrayList<TXOutput> outputs = new ArrayList<>();
         int sum = 0;
@@ -105,7 +108,7 @@ public class MiniChain implements Iterable<Block> {
             sum += out.output.value;
             TXInput in = new TXInput(out.transaction.getID(), 
                                      out.vOut, 
-                                     from, 
+                                     from.getBytes(), 
                                      wallet.keyPair.getPublic().getEncoded());
             inputs.add(in);
         }
@@ -123,7 +126,26 @@ public class MiniChain implements Iterable<Block> {
         
         Transaction transaction = new Transaction(inputs.toArray(new TXInput[0]), 
                 outputs.toArray(new TXOutput[0]));
+        signTransaction(transaction, wallet.keyPair.getPrivate());
         return transaction;
+    }
+    
+    public void signTransaction(Transaction tx, PrivateKey priKey) throws Exception {
+        Map<String, Transaction> prevTXs = new HashMap<>();
+        for (TXInput input : tx.getInputs()) {
+            Transaction prevTX = findTransaction(input.txId);
+            prevTXs.put(prevTX.getID(), prevTX);
+        }
+        tx.sign(priKey, prevTXs);
+    }
+    
+    public boolean verifyTransaction(Transaction tx) throws Exception {
+        Map<String, Transaction> prevTXs = new HashMap<>();
+        for (TXInput input : tx.getInputs()) {
+            Transaction prevTX = findTransaction(input.txId);
+            prevTXs.put(prevTX.getID(), prevTX);
+        }
+        return tx.verify(prevTXs);
     }
     
     public List<AvailableOutput> findAvailableOutputs(String address) {
@@ -191,8 +213,13 @@ public class MiniChain implements Iterable<Block> {
      * Add a new transaction to the FIFO queue waiting to be processed by miners.
      * 
      * @param transaction
+     * @throws Exception 
      */
-    public void newTransaction(Transaction transaction) {
+    public void newTransaction(Transaction transaction) throws Exception {
+        if (!verifyTransaction(transaction)) {
+            System.out.println("ERROR: Invalid transaction.");
+            return;
+        }
         transactions.offer(transaction);
     }
 
@@ -207,6 +234,24 @@ public class MiniChain implements Iterable<Block> {
             return null;
         return new Transaction[] {tx};
     }
+    
+    
+    /**
+     * Find transaction by ID. This method will iterator through all blocks to find a match.
+     * @param id Transaction ID in question.
+     * @return Corresponding Transaction.
+     */
+    public Transaction findTransaction(String id) {
+        for (Block block : this) {
+            for (Transaction t : block.getTransactions()) {
+                if (id.equals(t.getID()))
+                    return t;
+            }
+        }
+        return null;
+    }
+    
+    
 
     /* Miners use this method to submit the block they mined. */
     public void submit(Block block) {
@@ -271,8 +316,6 @@ public class MiniChain implements Iterable<Block> {
     /* Test */
     public static void main(String[] args) throws Exception {
         MiniChain chain = null;
-        //Wallet wallet = new Wallet();
-        //System.out.println("addr: " + wallet.address);
       
         try {
             chain = new MiniChain();
@@ -280,16 +323,14 @@ public class MiniChain implements Iterable<Block> {
             Thread t = new Miner(chain);
             t.start();
             Thread cli = new CLI(chain);
-            cli.start();
-            //Transaction tx = Transaction.newCoinbaseTX("second test", "something");
-            //chain.newTransaction(tx);
-            
+            cli.start();         
             t.join();
             cli.join();
             
         } finally {
             chain.close();
         }
+        
 
     }
 }

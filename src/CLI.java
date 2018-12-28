@@ -30,7 +30,7 @@ public class CLI extends Thread{
 	    System.out.println("createblockchain -addr \"address\".");
 	}
 	
-	public void send(String[] parameters) {
+	public void send(String[] parameters) throws Exception {
 	    String from = "";
 	    String to = "";
 	    int amount = 0;
