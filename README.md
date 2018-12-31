@@ -19,12 +19,20 @@ Blockchain implemented in Java.
 4. Send transaction:
 	- ![send](https://raw.githubusercontent.com/kouchibin/MiniChain/master/images/send.JPG)
 	
+5. Print chain:
+	- ![printchain](https://raw.githubusercontent.com/kouchibin/MiniChain/master/images/printchain.JPG)
+	
 ## Dependencies
 - [Gson 2.8.5](https://github.com/google/gson)
 - [dain/leveldb](https://github.com/dain/leveldb)
 - [Apache Commons Lang](https://commons.apache.org/proper/commons-lang/)
 - [Bitcoinj](https://bitcoinj.github.io/)
 
+For more details, please check [pom.xml](./pom.xml) .
+
 ## Reference Resources:
 - [Building Blockchain in Go](https://jeiwan.cc/posts/building-blockchain-in-go-part-1/)
 - [How to Generate Bitcoin Addresses in Java](https://www.novixys.com/blog/generate-bitcoin-addresses-java/)
+
+## License
+[MIT License](https://choosealicense.com/licenses/mit/)
