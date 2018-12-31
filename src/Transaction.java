@@ -30,35 +30,6 @@ public class Transaction implements Serializable {
         setID();
     }
     
-    public String getID() {
-        return ID;
-    }
-
-    public TXInput[] getInputs() {
-        return inputs;
-    }
-
-    public void setInputs(TXInput[] inputs) {
-        this.inputs = inputs;
-    }
-
-    public TXOutput[] getOutputs() {
-        return outputs;
-    }
-
-    public void setOutputs(TXOutput[] outputs) {
-        this.outputs = outputs;
-    }
-    
-    public static Transaction newCoinbaseTX(String to, String data) {
-        if (data == null || data.equals(""))
-            data = "Reward to " + to;
-        TXInput txin = new TXInput(null, -1, data.getBytes(), null);
-        TXOutput txout = new TXOutput(SUBSIDY, to);
-        Transaction tx = new Transaction(new TXInput[] {txin}, new TXOutput[] {txout});
-        return tx;
-    }
-    
     public void setID() {
         String inputsSerialize = new String(SerializationUtils.serialize(inputs));
         String outputsSerialize = new String(SerializationUtils.serialize(outputs));
@@ -69,13 +40,37 @@ public class Transaction implements Serializable {
         ID = newID;
     }
     
-    public boolean isCoinbase() {
-        return inputs[0].vOut == -1;
+    public String getID() {
+        return ID;
+    }
+
+    public void setInputs(TXInput[] inputs) {
+        this.inputs = inputs;
     }
     
+    public TXInput[] getInputs() {
+        return inputs;
+    }
+
+    public void setOutputs(TXOutput[] outputs) {
+        this.outputs = outputs;
+    }
+
+    public TXOutput[] getOutputs() {
+        return outputs;
+    }
+
+    public static Transaction newCoinbaseTX(String to, String data) {
+        if (data == null || data.equals(""))
+            data = "Reward to " + to;
+        TXInput txin = new TXInput(null, -1, data.getBytes(), null);
+        TXOutput txout = new TXOutput(SUBSIDY, to);
+        Transaction tx = new Transaction(new TXInput[] {txin}, new TXOutput[] {txout});
+        return tx;
+    }
     
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
+    public boolean isCoinbase() {
+        return inputs[0].vOut == -1;
     }
     
     public void sign(PrivateKey priKey, Map<String, Transaction> prevTXs) throws Exception {
@@ -84,7 +79,6 @@ public class Transaction implements Serializable {
         for (int i = 0; i < inputs.length; i++) {
             TXInput input = inputs[i];
             TXInput copyInput = txCopy.inputs[i];
-            
             Transaction prevTX = prevTXs.get(input.txId);
             copyInput.signature = null;
             copyInput.publicKey = prevTX.outputs[copyInput.vOut].pubKeyHash;
@@ -109,8 +103,6 @@ public class Transaction implements Serializable {
             txCopy.setID();
             
             copyInput.publicKey = null;
-            
-            
             Signature sig = Signature.getInstance("SHA256withECDSA");
             PublicKey pubKey = KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(input.publicKey));
             sig.initVerify(pubKey);
@@ -121,21 +113,23 @@ public class Transaction implements Serializable {
         }
         return true;
     }
-
+    
     private Transaction trimmedCopy() {
         ArrayList<TXInput> inputs = new ArrayList<>();
         ArrayList<TXOutput> outputs = new ArrayList<>();
-        for (TXInput input : this.inputs) {
+        for (TXInput input : this.inputs) 
             inputs.add(new TXInput(input.txId, input.vOut, null, null));
-        }
-        for (TXOutput output : this.outputs) {
+        for (TXOutput output : this.outputs) 
             outputs.add(new TXOutput(output.value, output.address));
-        }
         Transaction copy = new Transaction(inputs.toArray(new TXInput[0]), outputs.toArray(new TXOutput[0]));
         copy.setID(this.getID());
         return copy;
     }
 
+    public byte[] serialize() {
+        return SerializationUtils.serialize(this);
+    }
+    
     public String toString() {
         if (ID == null) 
             ID = "";
@@ -161,10 +155,10 @@ class TXInput implements Serializable {
 
     private static final long serialVersionUID = 1L;
     
-    public final String txId;           // The ID of the referenced transaction
-    public final int vOut;              // The index of the referenced out put in the above transaction
+    public final String txId;     // The ID of the referenced transaction
+    public final int vOut;        // The index of the referenced output in the above transaction
     public byte[] signature;      // The proof of the right to spend that referenced output
-    public byte[] publicKey;      // Raw public key. 
+    public byte[] publicKey;      // Raw public key
 	
 	public TXInput(String txId, int vOut, byte[] signature, byte[] publicKey) {
 	    this.txId = txId;
@@ -193,10 +187,10 @@ class TXOutput implements Serializable {
     public TXOutput(int value, String address) {
         this.value = value;
         this.address = address;
-        pubKeyHash = lock(address);
+        pubKeyHash = generatePubKeyHashFromAddress(address);
     }
     
-    public byte[] lock(String address) {
+    public byte[] generatePubKeyHashFromAddress(String address) {
         byte[] pubKeyHash = Base58.decode(address);
         // Remove version and checksum.
         return Arrays.copyOfRange(pubKeyHash, 1, pubKeyHash.length - 4); 

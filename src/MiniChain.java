@@ -19,36 +19,45 @@ import static org.iq80.leveldb.impl.Iq80DBFactory.*;
 import org.iq80.leveldb.Options;
 
 public class MiniChain implements Iterable<Block> {
-    private int difficulty = 4; // Mining difficulty - The number of preceding 0 of the hash.
+    private static final int DIFFICULTY = 4; // Mining difficulty - The number of preceding 0 in the hash.
+    private static final String DB_NAME = "chain-data";
+    
     private DB database;
     private Options options;
-    private byte[] latestBlock; // Key of the latest block in database
+    private byte[] latestBlockKey;          // Key of the latest block in database
     private Queue<Transaction> transactions;
 
-    public MiniChain() throws IOException {
-        options = new Options();
-        options.createIfMissing(true);
-        database = factory.open(new File("chain-data"), options);
+    public MiniChain() {
+        initializeDB();
         transactions = new ConcurrentLinkedQueue<>();
-
         // Check if there exists a blockchain in database 
-        latestBlock = database.get(bytes("l"));
-        if (latestBlock == null) {
+        latestBlockKey = database.get(bytes("l"));
+        if (latestBlockKey == null) {
             System.out.println("Currently there is no blockchain.\n"
                     + "Use <createblockchain -addr \"address\"> to create a new blockchain.");
         }
     }
     
-    public void createBlockchain(String creator) {
-        Transaction coinbase = Transaction.newCoinbaseTX(creator, "");
-        Block genesis = new Block(new Transaction[] {coinbase}, "");
-        latestBlock = bytes(genesis.getHash());
-        initializeDatabase();
-        database.put(latestBlock, genesis.serialize());
-        database.put(bytes("l"), latestBlock);
+    public void initializeDB() {
+        try {
+            options = new Options();
+            options.createIfMissing(true);
+            database = factory.open(new File(DB_NAME), options);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
     
-    public void initializeDatabase() {
+    public void createBlockchain(String creatorAddress) {
+        Transaction coinbase = Transaction.newCoinbaseTX(creatorAddress, "");
+        Block genesis = new Block(new Transaction[] {coinbase}, "");
+        latestBlockKey = bytes(genesis.getHash());
+        clearDB();
+        database.put(latestBlockKey, genesis.serialize());
+        database.put(bytes("l"), latestBlockKey);
+    }
+    
+    private void clearDB() {
         ArrayList<byte[]> keys = new ArrayList<>(); 
         for (Map.Entry<byte[], byte[]> entry : database) {
             keys.add(entry.getKey());
@@ -61,20 +70,11 @@ public class MiniChain implements Iterable<Block> {
      * Test if the database stores a blockchain.
      * @return True if database is empty. False otherwise.
      */
-    public boolean emptyChain() {
-        return latestBlock == null;
+    public boolean isEmptyChain() {
+        return latestBlockKey == null;
     }
     
-    
-    /**
-     * Add a sending coins transaction to the blockchain.
-     * @param from The source account. 
-     * @param to The destination account.
-     * @param publicKey The public key of the initiator of this transaction.
-     * @param amount The amount will be sent in the transaction.
-     * @throws Exception 
-     */
-    public void sendTransaction(String from, String to, int amount, Wallet wallet) throws Exception {
+    public void addSendingTransaction(String from, String to, int amount, Wallet wallet) throws Exception {
         Transaction transaction = newUTXOTransaction(from, to, amount, wallet);
         if (transaction == null) {
             System.out.println("Not enough funds.");
@@ -82,7 +82,7 @@ public class MiniChain implements Iterable<Block> {
         }
         
         // Add the transaction to the queue to be mined.
-        newTransaction(transaction);
+        addNewTransaction(transaction);
     }
     
     
@@ -90,8 +90,8 @@ public class MiniChain implements Iterable<Block> {
      * Construct a sending coins transaction. 
      * @param from The source account. 
      * @param to The destination account.
-     * @param amount The amount will be sent in the transaction.
-     * @param publicKey The public key of the initiator of this transaction.
+     * @param amount The amount will be transferred in the transaction.
+     * @param wallet The wallet corresponding to the source account.
      * @return The constructed transaction. 
      *         Or null if source account doesn't have enough coins.
      * @throws Exception 
@@ -113,7 +113,6 @@ public class MiniChain implements Iterable<Block> {
             inputs.add(in);
         }
         
-        
         // Not enough coins in the source account.
         if (sum < amount) 
             return null;
@@ -128,24 +127,6 @@ public class MiniChain implements Iterable<Block> {
                 outputs.toArray(new TXOutput[0]));
         signTransaction(transaction, wallet.keyPair.getPrivate());
         return transaction;
-    }
-    
-    public void signTransaction(Transaction tx, PrivateKey priKey) throws Exception {
-        Map<String, Transaction> prevTXs = new HashMap<>();
-        for (TXInput input : tx.getInputs()) {
-            Transaction prevTX = findTransaction(input.txId);
-            prevTXs.put(prevTX.getID(), prevTX);
-        }
-        tx.sign(priKey, prevTXs);
-    }
-    
-    public boolean verifyTransaction(Transaction tx) throws Exception {
-        Map<String, Transaction> prevTXs = new HashMap<>();
-        for (TXInput input : tx.getInputs()) {
-            Transaction prevTX = findTransaction(input.txId);
-            prevTXs.put(prevTX.getID(), prevTX);
-        }
-        return tx.verify(prevTXs);
     }
     
     public List<AvailableOutput> findAvailableOutputs(String address) {
@@ -186,55 +167,37 @@ public class MiniChain implements Iterable<Block> {
         return availableOutputs;
     }
     
-    public int getBalance(String address) {
-        List<AvailableOutput> availableOutputs = findAvailableOutputs(address);
-        int balance = 0;
-        for (AvailableOutput out : availableOutputs) {
-            balance += out.output.value;
+    public void signTransaction(Transaction tx, PrivateKey priKey) throws Exception {
+        Map<String, Transaction> prevTXs = new HashMap<>();
+        for (TXInput input : tx.getInputs()) {
+            Transaction prevTX = findTransaction(input.txId);
+            prevTXs.put(prevTX.getID(), prevTX);
         }
-        return balance;
+        tx.sign(priKey, prevTXs);
     }
     
-    private void addBlock(Block block) {
-        latestBlock = bytes(block.getHash());
-        database.put(latestBlock, block.serialize());
-        database.put(bytes("l"), latestBlock);
-    }
-
-    public String getLatesBlockHash() {
-        return asString(latestBlock);
-    }
-
-    public int getDifficulty() {
-        return difficulty;
-    }
-
     /**
      * Add a new transaction to the FIFO queue waiting to be processed by miners.
      * 
      * @param transaction
      * @throws Exception 
      */
-    public void newTransaction(Transaction transaction) throws Exception {
+    public void addNewTransaction(Transaction transaction) throws Exception {
         if (!verifyTransaction(transaction)) {
             System.out.println("ERROR: Invalid transaction.");
             return;
         }
         transactions.offer(transaction);
     }
-
-    /**
-     * Return unprocessed new transactions to be processed.
-     * 
-     * @return
-     */
-    public Transaction[] getNewTransactions() {
-        Transaction tx = transactions.peek();
-        if (tx == null)
-            return null;
-        return new Transaction[] {tx};
-    }
     
+    public boolean verifyTransaction(Transaction tx) throws Exception {
+        Map<String, Transaction> prevTXs = new HashMap<>();
+        for (TXInput input : tx.getInputs()) {
+            Transaction prevTX = findTransaction(input.txId);
+            prevTXs.put(prevTX.getID(), prevTX);
+        }
+        return tx.verify(prevTXs);
+    }
     
     /**
      * Find transaction by ID. This method will iterator through all blocks to find a match.
@@ -250,14 +213,14 @@ public class MiniChain implements Iterable<Block> {
         }
         return null;
     }
-    
-    
 
-    /* Miners use this method to submit the block they mined. */
+    /**
+     *  Miners use this method to submit the block they have mined. 
+     */
     public void submit(Block block) {
         // Check the validity of the block before adding to the chain
         String previousHash = getLatesBlockHash();
-        if (block.getPreviousBlockHash().equals(previousHash) && PoW.verifyBlock(block, difficulty)) {
+        if (block.getPreviousBlockHash().equals(previousHash) && PoW.verifyBlock(block, DIFFICULTY)) {
 
             // Add the mined block to the chain
             addBlock(block);
@@ -267,9 +230,44 @@ public class MiniChain implements Iterable<Block> {
         } else
             System.out.println("Illegal block rejected.");
     }
+    
+    public String getLatesBlockHash() {
+        return asString(latestBlockKey);
+    }
+    
+    private void addBlock(Block block) {
+        latestBlockKey = bytes(block.getHash());
+        database.put(latestBlockKey, block.serialize());
+        database.put(bytes("l"), latestBlockKey);
+    }
 
+    /**
+     * Return unprocessed new transactions to be processed.
+     * Miners use this method to get the workload.
+     * @return An array of transactions waiting to be mined.
+     */
+    public Transaction[] getNewTransactions() {
+        Transaction tx = transactions.peek();
+        if (tx == null)
+            return null;
+        return new Transaction[] {tx};
+    }
+    
     public void close() throws IOException {
         database.close();
+    }
+    
+    public int getBalance(String address) {
+        List<AvailableOutput> availableOutputs = findAvailableOutputs(address);
+        int balance = 0;
+        for (AvailableOutput out : availableOutputs) {
+            balance += out.output.value;
+        }
+        return balance;
+    }
+
+    public int getDifficulty() {
+        return DIFFICULTY;
     }
 
     public String toString() {
@@ -290,7 +288,7 @@ public class MiniChain implements Iterable<Block> {
         private Block currentBlock;
 
         public BlockchainIterator() {
-            currentBlock = Block.deserialize(database.get(latestBlock));
+            currentBlock = Block.deserialize(database.get(latestBlockKey));
         }
 
         @Override

@@ -20,9 +20,11 @@ public class Wallets extends HashMap<String, Wallet>{
 class Wallet {
     
     public final KeyPair keyPair;
-    public final String address;
     
-    public Wallet() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException, NoSuchProviderException {
+    // Bitcoin style address generated from the public key of the keyPair.
+    public final String address;  
+    
+    public Wallet() throws Exception {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
         ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256r1");
         keyGen.initialize(ecSpec);
@@ -30,20 +32,20 @@ class Wallet {
         address = generateAddress();
     }
     
-    public static byte[] getPubKeyHash(PublicKey publicKey) {
-        byte[] pubKeyHash = Utils.sha256hash160(publicKey.getEncoded());
-        return pubKeyHash;
-    }
-    
-    public String generateAddress() throws NoSuchAlgorithmException, NoSuchProviderException {
-        byte[] pubKeyHash = getPubKeyHash(keyPair.getPublic());
+    public String generateAddress() throws Exception {
+        byte[] pubKeyHash = generatePubKeyHash(keyPair.getPublic());
         byte[] versionedPayload = ArrayUtils.addAll(new byte[] {0}, pubKeyHash);
-        byte[] checksum = checksum(versionedPayload);
+        byte[] checksum = generateChecksum(versionedPayload);
         byte[] fullPayload = ArrayUtils.addAll(versionedPayload, checksum);
         return Base58.encode(fullPayload);
     }
     
-    private byte[] checksum(byte[] payload) throws NoSuchAlgorithmException {
+    public static byte[] generatePubKeyHash(PublicKey publicKey) {
+        byte[] pubKeyHash = Utils.sha256hash160(publicKey.getEncoded());
+        return pubKeyHash;
+    }
+    
+    private byte[] generateChecksum(byte[] payload) throws NoSuchAlgorithmException {
         MessageDigest sha = MessageDigest.getInstance("SHA-256");
         byte[] firstHash = sha.digest(payload);
         byte[] secondHash = sha.digest(firstHash);

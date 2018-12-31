@@ -15,6 +15,5 @@ public class StringUtil {
 			e.printStackTrace();
 			throw new RuntimeException(e);
 		}
-		
 	}
 }
